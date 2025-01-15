@@ -1,6 +1,7 @@
 import { Plugin, WorkspaceWindow } from 'obsidian';
 import { TikzjaxPluginSettings, DEFAULT_SETTINGS, TikzjaxSettingTab } from "./settings";
 import { optimize } from "./svgo.browser";
+import { exec } from 'child_process';
 
 // @ts-ignore
 import tikzjaxJs from 'inline:./tikzjax.js';
@@ -177,10 +178,70 @@ export default class TikzjaxPlugin extends Plugin {
 		if (this.settings.invertColorsInDarkMode) {
 			svg = this.colorSVGinDarkMode(svg);
 		}
-
+		
 		svg = this.optimizeSVG(svg);
 
 		svgEl.outerHTML = svg;
 	}
-}
 
+
+	async installPackages(packageNames: string): Promise<boolean> {
+		return new Promise((resolve, reject) => {
+			exec(`tlmgr install ${packageNames}`, (error, stdout, stderr) => {
+				if (error) {
+					console.error("Error installing packages:", error.message);
+					reject(false);
+				}
+				if (stderr) {
+					console.error("Installation stderr:", stderr);
+					reject(false);
+				}
+				console.log("Installation stdout:", stdout);
+				resolve(true);
+			});
+		});
+	}
+
+
+	async uninstallPackages(packageNames: string): Promise<boolean> {
+		return new Promise((resolve, reject) => {
+			exec(`tlmgr remove ${packageNames}`, (error, stdout, stderr) => {
+				if (error) {
+					console.error("Error uninstalling packages:", error.message);
+					reject(false);
+				}
+				if (stderr) {
+					console.error("Uninstallation stderr:", stderr);
+					reject(false);
+				}
+				console.log("Uninstallation stdout:", stdout);
+				resolve(true);
+			});
+		});
+	}
+	
+	
+	async getPackages(): Promise<string[]> {
+		return new Promise((resolve, reject) => {
+			exec("tlmgr list --only-installed", (error, stdout, stderr) => {
+				if (error) {
+					console.error("Error retrieving package list:", error.message);
+					reject(error);
+					return;
+				}
+				if (stderr) {
+					console.error("Error output from tlmgr:", stderr);
+					reject(new Error(stderr));
+					return;
+				}
+				const installedPackages = stdout
+				.split("\n")
+				.filter(line => line.startsWith("i "))
+				.map(line => line.split(" ")[1])
+				.filter(pkg => pkg);
+		
+				resolve(installedPackages);
+			});
+		});
+	}
+}
